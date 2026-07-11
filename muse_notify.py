@@ -4,10 +4,14 @@ from bleak import BleakClient
 from decoder import decode_eeg_packet
 from frame_buffer import MuseFrameBuffer
 from rolling_buffer import RollingBuffer
+from processor import EEGProcessor
+
+processor = EEGProcessor()
 
 rolling = RollingBuffer()
 buffer = MuseFrameBuffer()
 
+frame_counter = 0
 
 ADDRESS = "00:55:DA:B6:2F:72"
 
@@ -31,7 +35,7 @@ CHANNEL_NAMES = {
 }
 
 def callback(sender, data):
-
+    global frame_counter
     packet, samples = decode_eeg_packet(data)
 
     frame = buffer.add_packet(
@@ -43,11 +47,15 @@ def callback(sender, data):
     if frame is not None:
 
         packet_number, eeg = frame
-       
+
         rolling.add_frame(eeg)
         if rolling.is_full():
-            print("Rolling buffer full :(")
-            print (len(rolling.get_data()["TP9"]))
+                frame_counter += 1
+                if frame_counter % 5 == 0:
+                      processor.process(
+                           rolling.get_data()
+                      )
+#                     print (len(rolling.get_data()["TP9"]))
 
 async def main():
     async with BleakClient(ADDRESS) as client:

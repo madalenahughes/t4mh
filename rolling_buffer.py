@@ -25,10 +25,7 @@ class RollingBuffer:
                 self.channels[channel] = self.channels[channel][-self.window_size:]
 
     def is_full(self):
-        if len(self.channels["TP9"]) == self.window_size:
-            if not self.ready:
-                 self.ready = True
-                 return True
-        return False
+        return len(self.channels["TP9"]) == self.window_size
+
     def get_data(self):
         return self.channels
