@@ -21,15 +21,15 @@ class EEGProcessor:
         for channel in eeg:
 
             data = eeg[channel]
-#            data = filtfilt( #remove 60Hz electrical noise
- #               self.b_notch,
-  #               self.a_notch,
-   #              data
-    #        )
+            data = filtfilt( #remove 60Hz electrical noise
+                 self.b_notch,
+                 self.a_notch,
+                 data
+            )
             freqs, psd = welch(
                 data,
-                fs=256,
-                nperseg=256
+                fs=self.fs,
+                nperseg=self.fs
             )
             if self.first_plot:
                 plt.figure(figsize=(8,4))
@@ -43,12 +43,18 @@ class EEGProcessor:
                 print("Saved PSD to psd.png") #^_^
                 self.first_plot = False
             alpha = (freqs >= 8) & (freqs <= 13)
+
+            alpha_freqs = freqs[alpha]
+            alpha_psd = psd[alpha]
+            peak_alpha_freq = alpha_freqs[np.argmax(alpha_psd)]
+            print(f"{channel} peak alpha frequency: {peak_alpha_freq:.1f} Hz")
+
             alpha_power = np.sum(psd[alpha])
             print(f"{channel}: Alpha power = {alpha_power:.2f}")
 
-            peak_index = np.argmax(psd)
-            peak_freq = freqs[peak_index]
-            print(f"{channel} peak frequency: {peak_freq:.1f} Hz")
+#           peak_index = np.argmax(psd)
+#           peak_freq = freqs[peak_index]
+#           print(f"{channel} peak frequency: {peak_freq:.1f} Hz")
 
             rms = np.sqrt(np.mean(data**2))
             print(
