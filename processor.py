@@ -8,6 +8,9 @@ class EEGProcessor:
     def __init__(self):
         self.fs = 256
         self.window_count = 0
+        self.faa_smoothed = None
+        self.faa_smoothing_factor = 0.2
+
         self.b_notch, self.a_notch = iirnotch(
              w0=60,
              Q=30,
@@ -60,6 +63,18 @@ class EEGProcessor:
                  "peak_alpha": peak_alpha_freq,
                  "std": std,
             }
+        if "AF7" in results and "AF8" in results:
+            faa = (
+                np.log(max(results["AF8"]["alpha_power"], 1e-12)) - np.log(max(results["AF7"]["alpha_power"], 1e-12))
+            )
+        else:
+            faa = None
+        if faa is not None:
+            if self.faa_smoothed is None:
+                self.faa_smoothed = faa
+            else:
+                self.faa_smoothed = (self.faa_smoothing_factor * faa + (1 - self.faa_smoothing_factor) * self.faa_smoothed
+            )
         max_alpha = max(
             result["alpha_power"]
             for result in results.values()
@@ -101,13 +116,17 @@ class EEGProcessor:
                    f"{channel:<6}"
                    f"{quality:<8}"
                    f"{bar:<22}"
-                   f"{alpha:>10}"
+                   f"{alpha:>10.1f}"
                    f"{peak:>10} Hz"
                )
 
         print("\nFAA")
         print("-" * 56)
-        print("Current: Waiting...")
+        if faa is not None:
+            print(f"Current: {faa:+3f}")
+            print(f"Smoothed: {self.faa_smoothed:+.3f}")
+        else:
+            print("Waiting for AF7/AF8...")
 
         print("\nSystem")
         print("-" * 56)
