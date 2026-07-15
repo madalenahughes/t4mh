@@ -1,150 +1,60 @@
 import sys
-from pathlib import Path
-
 import pandas as pd
 import matplotlib.pyplot as plt
 
+if len(sys.argv) != 2:
+    print("Usage: python plot_session.py logs/session_xxx_samples.csv")
+    sys.exit(1)
 
-BASELINE_END = 60
-MUSIC_END = 120
+csv_path = sys.argv[1]
+df = pd.read_csv(csv_path)
 
+t = df["t_rel_s"]
+rmssd = df["rmssd_ms"]
+tempo = df["tempo"]
 
-def plot_session(csv_file):
+plt.figure(figsize=(12,6))
 
-    df = pd.read_csv(csv_file)
+# Background phases
+plt.axvspan(0, 30, color="lightgray", alpha=0.4, label="Baseline")
+plt.axvspan(30, t.max(), color="lightgreen", alpha=0.25, label="Adaptive")
 
-    t = df["t_rel_s"]
-    rmssd = df["smoothed_rmssd_ms"]
+ax1 = plt.gca()
 
-    baseline = rmssd[t < BASELINE_END].mean()
+ax1.plot(
+    t,
+    rmssd,
+    linewidth=2.5,
+)
 
-    fig, ax1 = plt.subplots(figsize=(14, 7))
+ax1.set_xlabel("Time (s)")
+ax1.set_ylabel("RMSSD (ms)")
+ax1.grid(True)
 
-    # --------------------------------------------------
-    # Background regions
-    # --------------------------------------------------
+ax2 = ax1.twinx()
 
-    ax1.axvspan(
-        0,
-        BASELINE_END,
-        color="lightgray",
-        alpha=0.25,
-        label="Baseline"
-    )
+ax2.plot(
+    t,
+    tempo,
+    "--",
+    linewidth=2,
+    label="Adaptive Tempo",
+)
 
-    ax1.axvspan(
-        BASELINE_END,
-        MUSIC_END,
-        color="lightskyblue",
-        alpha=0.25,
-        label="Music only"
-    )
+ax2.set_ylabel("Tempo multiplier")
 
-    ax1.axvspan(
-        MUSIC_END,
-        t.max(),
-        color="lightgreen",
-        alpha=0.20,
-        label="Adaptive"
-    )
+lines1, labels1 = ax1.get_legend_handles_labels()
+lines2, labels2 = ax2.get_legend_handles_labels()
 
-    # vertical separators
+ax1.legend(lines1 + lines2, labels1 + labels2, loc="upper left")
 
-    ax1.axvline(BASELINE_END, ls=":", color="gray")
-    ax1.axvline(MUSIC_END, ls=":", color="gray")
+plt.title("Adaptive Music Session with 1Beeth.wav")
 
-    # --------------------------------------------------
-    # RMSSD
-    # --------------------------------------------------
+plt.tight_layout()
 
-    ax1.plot(
-        t,
-        rmssd,
-        color="tab:blue",
-        lw=3,
-        label="RMSSD (ms)"
-    )
+outfile = csv_path.replace("_samples.csv", ".png")
+plt.savefig(outfile, dpi=300)
 
-    ax1.axhline(
-        baseline,
-        ls="--",
-        color="tab:blue",
-        alpha=.6,
-        label="Baseline RMSSD"
-    )
+print(f"Saved {outfile}")
 
-    ax1.set_xlabel("Time (s)")
-    ax1.set_ylabel("RMSSD (ms)", color="tab:blue")
-
-    # --------------------------------------------------
-    # Adaptive variable
-    # --------------------------------------------------
-
-    ax2 = ax1.twinx()
-
-    if "tempo" in df.columns:
-
-        ax2.plot(
-            t,
-            df["tempo"],
-            color="tab:orange",
-            lw=2.5,
-            label="Tempo multiplier"
-        )
-
-        ax2.set_ylabel(
-            "Tempo multiplier",
-            color="tab:orange"
-        )
-
-    elif "pitch" in df.columns:
-
-        ax2.plot(
-            t,
-            df["pitch"],
-            color="tab:red",
-            lw=2.5,
-            label="Pitch shift"
-        )
-
-        ax2.set_ylabel(
-            "Pitch shift (semitones)",
-            color="tab:red"
-        )
-
-    # --------------------------------------------------
-
-    lines1, labels1 = ax1.get_legend_handles_labels()
-    lines2, labels2 = ax2.get_legend_handles_labels()
-
-    ax1.legend(
-        lines1 + lines2,
-        labels1 + labels2,
-        loc="upper left"
-    )
-
-    plt.title(f"Session: {Path(csv_file).stem}")
-
-    plt.tight_layout()
-
-    out = Path(csv_file).with_suffix("")
-
-    plt.savefig(
-        f"{out}_plot.png",
-        dpi=300
-    )
-
-    print(f"Saved {out}_plot.png")
-
-    plt.show()
-
-
-if __name__ == "__main__":
-
-    if len(sys.argv) != 2:
-
-        print("Usage:")
-        print("python plot_session.py session.csv")
-        sys.exit()
-
-    plot_session(sys.argv[1])
+plt.show()

@@ -166,7 +166,7 @@ async def rmssd_z_stream(
         # --- post-baseline: emit z-scores ---
         z = (rmssd - base_mean) / base_std
         try:
-            queue.put_nowait(z)
+             queue.put_nowait((rmssd * 1000.0, z))
         except asyncio.QueueFull:
             # if for some reason consumer is slow, just drop the sample
             pass
@@ -180,8 +180,8 @@ async def rmssd_z_stream(
 
             try:
                 while True:
-                    rmssd_z = await queue.get()
-                    yield rmssd_z
+                    rmssd_ms, rmssd_z = await queue.get()
+                    yield rmssd_ms, rmssd_z
             except asyncio.CancelledError:
                 # Propagate cancellation upwards, but still run cleanup in finally
                 print("rmssd_z_stream: cancelled.")

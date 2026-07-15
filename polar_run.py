@@ -28,9 +28,9 @@ from controller import AudioParams, update_audio_params
 
 
 # ===== CONFIG =====
-BASELINE_SECONDS = 60         # HRV baseline (music OFF)
-PRE_WINDOW_SECONDS = 120      # Full pre window = 60s baseline + 60s static params
-POST_WINDOW_SECONDS = 60      # Last 60s of audio
+BASELINE_SECONDS = 30         # HRV baseline (music OFF)
+PRE_WINDOW_SECONDS = 30      # Full pre window = 60s baseline + 60s static params
+POST_WINDOW_SECONDS = 30      # Last 60s of audio
 SUMMARY_CSV = "stress_summary.csv"
 LOG_DIR = "logs"
 
@@ -116,12 +116,13 @@ def write_per_sample_log(
 
     with open(path, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["t_rel_s", "rmssd_z", "tempo", "pitch", "volume"])
+        writer.writerow(["t_rel_s", "rmssd_ms", "rmssd_z", "tempo", "pitch", "volume"])
 
-        for t_rel, z, tempo, pitch, volume in samples:
+        for t_rel, rmssd, z, tempo, pitch, volume in samples:
             writer.writerow(
                 [
                     round(t_rel, 3),
+                    round(rmssd, 6),
                     round(z, 6),
                     round(tempo, 4),
                     round(pitch, 4),
@@ -143,11 +144,11 @@ def compute_pre_post(samples):
     t_last = samples[-1][0]
 
     # PRE WINDOW = first PRE_WINDOW_SECONDS (usually 120s)
-    pre_vals = [z for (t, z, _, _, _) in samples if t <= PRE_WINDOW_SECONDS]
+    pre_vals = [z for (t, rmssd, z, _, _, _) in samples if t <= PRE_WINDOW_SECONDS]
 
     # POST WINDOW = last POST_WINDOW_SECONDS
     post_start = max(0.0, t_last - POST_WINDOW_SECONDS)
-    post_vals = [z for (t, z, _, _, _) in samples if t >= post_start]
+    post_vals = [z for (t, rmssd, z, _, _, _) in samples if t >= post_start]
 
     pre_mean = sum(pre_vals) / len(pre_vals)
     post_mean = sum(post_vals) / len(post_vals)
@@ -231,6 +232,7 @@ async def run_session():
     t_start_iso = start_dt.isoformat(timespec="seconds")
 
     t0 = None
+    music_started = False
 
     # ----- Initialize audio engine -----
     try:
@@ -239,7 +241,11 @@ async def run_session():
         audio_engine.finished = False
 #        audio_engine.start()
 #        audio_engine.set_tempo(current_params.tempo)
+#        result = audio_engine.player.play()
+#        print(f"[audio_engine] play() returned {result}")
+
         audio_engine.set_params(current_params)
+
     except Exception as e:
         print(f"[polar_run] WARNING: audio engine failed: {e!r}")
         audio_engine = None
@@ -250,7 +256,7 @@ async def run_session():
         # ======================================================
         print("[polar_run] Trying to connect to Polar H10...")
         try:
-            async for z in rmssd_z_stream():
+            async for rmssd_ms, z in rmssd_z_stream(baseline_duration_s=30.0):
 
                 # Start timing
                 if t0 is None:
@@ -262,11 +268,16 @@ async def run_session():
                     break
 
                 t_rel = time.time() - t0
-
+                print(f"DEBUG t_rel={t_rel:.1f}, music_started={music_started}")
+                if audio_engine is not None and not music_started:
+                    result = audio_engine.player.play()
+                    print(f"[audio_engine] Starting music (play() returned {result})")
+                    music_started = True
                 # Store full per-sample data
                 samples.append(
                     (
                         t_rel,
+                        float("nan"),
                         z,
                         current_params.tempo,
                         current_params.pitch,
@@ -275,9 +286,17 @@ async def run_session():
                 )
 
                 is_baseline = t_rel <= BASELINE_SECONDS
+                is_music_only = (
+                     t_rel > BASELINE_SECONDS
+                     and t_rel <= PRE_WINDOW_SECONDS
+                )
                 is_post_window = False
-
-                apply_biofeedback(t_rel, z, is_baseline, is_post_window)
+                if is_baseline or is_music_only:
+                     current_params = AudioParams()
+                     if audio_engine is not None:
+                         audio_engine.set_params(current_params)
+                else:
+                     apply_biofeedback(t_rel, z, is_baseline, is_post_window)
 
         except RuntimeError as e:
             if "Polar H10" in str(e):
