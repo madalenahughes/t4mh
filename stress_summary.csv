@@ -1,0 +1,4 @@
+subject_id,session_label,session_id,t_start_iso,duration_s,baseline_s,pre_window_s,post_window_s,pre_mean_z,post_mean_z,delta_z,pre_n,post_n
+test_subject,music_biofeedback_1,20260714_201953,2026-07-14T20:19:53,0.0,60,120,60,2.245,2.245,0.0,1,1
+test_subject,music_biofeedback_1,20260714_202551,2026-07-14T20:25:51,0.0,60,120,60,0.3573,0.3573,0.0,1,1
+test_subject,music_biofeedback_1,20260714_203519,2026-07-14T20:35:19,8.978,60,120,60,1.1389,1.1389,0.0,10,10

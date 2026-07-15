@@ -234,10 +234,11 @@ async def run_session():
 
     # ----- Initialize audio engine -----
     try:
-        audio_engine = AudioEngine()
+        audio_engine = AudioEngine(media_path="1Beeth.wav")
         current_params = AudioParams()
         audio_engine.finished = False
-        audio_engine.player.play()
+#        audio_engine.start()
+#        audio_engine.set_tempo(current_params.tempo)
         audio_engine.set_params(current_params)
     except Exception as e:
         print(f"[polar_run] WARNING: audio engine failed: {e!r}")
