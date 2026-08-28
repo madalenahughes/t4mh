@@ -24,3 +24,4 @@ scipy==1.16.3
 setuptools==80.9.0
 six==1.17.0
 tzdata==2025.2
+bitsring==4.4.0

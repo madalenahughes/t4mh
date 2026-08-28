@@ -78,7 +78,8 @@ async def main():
         )
 
         print("Waiting for packets...")
-        await asyncio.sleep(15)
+        while True:
+             await asyncio.sleep(1)
 
 
 asyncio.run(main())
