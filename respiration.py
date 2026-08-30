@@ -1,7 +1,8 @@
 import os
 import time
 from collections import deque
-
+import json
+import socket
 import numpy as np
 from scipy.signal import find_peaks
 from godirect import GoDirect
@@ -10,7 +11,13 @@ from godirect import GoDirect
 # ---------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------
+INTEGRATION_HOST = "127.0.0.1"
+INTEGRATION_PORT = 15000
 
+integration_sock = socket.socket(
+    socket.AF_INET,
+    socket.SOCK_DGRAM
+)
 PERIOD_MS = 100          # Go Direct sampling period
 SAMPLE_RATE = 1000 / PERIOD_MS   # 10 Hz
 
@@ -206,6 +213,16 @@ try:
         latest["Respiration Rate"] = rate
         latest["Breaths Detected"] = breaths
 
+        message = {
+              "sensor": "respiration",
+              "force": latest["Force"],
+              "rate": latest["Respiration Rate"],
+        }
+
+        integration_sock.sendto(
+              json.dumps(message).encode("utf-8"),
+              (INTEGRATION_HOST, INTEGRATION_PORT)
+        )
 
         # -------------------------------------------------
         # Dashboard
@@ -282,3 +299,4 @@ finally:
         pass
 
     godirect.quit()
+    integration_sock.close()

@@ -18,6 +18,8 @@ import csv
 import math
 import os
 import random
+import json
+import socket
 import time
 from datetime import datetime
 from typing import List, Tuple
@@ -37,7 +39,13 @@ LOG_DIR = "logs"
 SUBJECT_ID = "test_subject"
 SESSION_LABEL = "music_biofeedback_1"
 
+INTEGRATION_HOST = "127.0.0.1"
+INTEGRATION_PORT = 15000
 
+integration_sock = socket.socket(
+    socket.AF_INET,
+    socket.SOCK_DGRAM
+)
 # ===== GLOBAL AUDIO STATE =====
 audio_engine: AudioEngine | None = None
 current_params = AudioParams()
@@ -210,7 +218,17 @@ def append_summary_row(
             writer.writerow(header)
         writer.writerow(row)
 
+def publish_to_integration(rmssd_ms, z):
+    message = {
+        "sensor": "polar",
+        "rmssd_ms": float(rmssd_ms),
+        "rmssd_z": float(z),
+    }
 
+    integration_sock.sendto(
+        json.dumps(message).encode("utf-8"),
+        (INTEGRATION_HOST, INTEGRATION_PORT)
+    )
 # ======================================================================
 # MAIN SESSION LOOP
 # ======================================================================
@@ -268,6 +286,7 @@ async def run_session():
                     break
 
                 t_rel = time.time() - t0
+                publish_to_integration(rmssd_ms, z)
                 print(f"DEBUG t_rel={t_rel:.1f}, music_started={music_started}")
                 if audio_engine is not None and not music_started:
                     result = audio_engine.player.play()
@@ -277,7 +296,7 @@ async def run_session():
                 samples.append(
                     (
                         t_rel,
-                        float("nan"),
+                        rmssd_ms,
                         z,
                         current_params.tempo,
                         current_params.pitch,

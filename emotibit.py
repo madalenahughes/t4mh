@@ -1,10 +1,14 @@
 import socket
 import time
 import os
+import json
 import threading
 
 HOST = "0.0.0.0"
 PORT = 12346
+
+INTEGRATION_HOST = "127.0.0.1"
+INTEGRATION_PORT = 15000
 
 WANTED_TAGS = {
     "EA",
@@ -18,24 +22,39 @@ latest = {}
 lock = threading.Lock()
 running = True
 
+integration_sock = socket.socket(
+    socket.AF_INET,
+    socket.SOCK_DGRAM
+)
+
 
 def receiver():
     global running
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-    # Give ourselves more room for the EmotiBit firehose
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)
+    # Give ourselves more room for the EmotiBit UDP stream
+    sock.setsockopt(
+        socket.SOL_SOCKET,
+        socket.SO_RCVBUF,
+        1024 * 1024
+    )
+
     sock.bind((HOST, PORT))
     sock.settimeout(0.5)
 
     while running:
         try:
             data, addr = sock.recvfrom(65535)
+
         except socket.timeout:
             continue
 
-        text = data.decode("utf-8", errors="ignore").strip()
+        text = data.decode(
+            "utf-8",
+            errors="ignore"
+        ).strip()
+
         fields = text.split(",")
 
         try:
@@ -70,8 +89,41 @@ def value(tag, decimals=3):
     return f"{val:.{decimals}f}"
 
 
+def publish_to_integration():
+    with lock:
+        message = {
+            "sensor": "emotibit",
+
+            "eda": latest.get("EA"),
+
+            "t1": latest.get("T1"),
+            "th": latest.get("TH"),
+
+            "ax": latest.get("AX"),
+            "ay": latest.get("AY"),
+            "az": latest.get("AZ"),
+
+            "gx": latest.get("GX"),
+            "gy": latest.get("GY"),
+            "gz": latest.get("GZ"),
+
+            "mx": latest.get("MX"),
+            "my": latest.get("MY"),
+            "mz": latest.get("MZ"),
+        }
+
+    integration_sock.sendto(
+        json.dumps(message).encode("utf-8"),
+        (
+            INTEGRATION_HOST,
+            INTEGRATION_PORT
+        )
+    )
+
+
 def draw_dashboard():
-    os.system("clear")
+    if os.isatty(1):
+        os.system("clear")
 
     print("=" * 60)
     print("EMOTIBIT")
@@ -79,12 +131,23 @@ def draw_dashboard():
 
     print("\nEDA")
     print("-" * 60)
-    print(f"EA                {value('EA', 6):>15}")
+    print(
+        f"EA                "
+        f"{value('EA', 6):>15}"
+    )
 
     print("\nTemperature")
     print("-" * 60)
-    print(f"T1                {value('T1'):>15} °C")
-    print(f"TH                {value('TH'):>15} °C")
+
+    print(
+        f"T1                "
+        f"{value('T1'):>15} °C"
+    )
+
+    print(
+        f"TH                "
+        f"{value('TH'):>15} °C"
+    )
 
     print("\nIMU")
     print("-" * 60)
@@ -118,17 +181,29 @@ def draw_dashboard():
     print("=" * 60)
 
 
-# Start UDP acquisition independently
-rx_thread = threading.Thread(target=receiver, daemon=True)
+# Start EmotiBit UDP acquisition in background
+rx_thread = threading.Thread(
+    target=receiver,
+    daemon=True
+)
+
 rx_thread.start()
+
 
 try:
     while True:
+        publish_to_integration()
         draw_dashboard()
+
         time.sleep(0.5)
 
 except KeyboardInterrupt:
     running = False
     print("\nEmotiBit stream stopped.")
 
-rx_thread.join(timeout=1)
+finally:
+    running = False
+
+    rx_thread.join(timeout=1)
+
+    integration_sock.close()

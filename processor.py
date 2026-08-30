@@ -1,11 +1,20 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+import socket
+import json
 from scipy.signal import welch, iirnotch, filtfilt
 
 class EEGProcessor:
 
     def __init__(self):
+        self.integration_host = "127.0.0.1"
+        self.integration_port = 15000
+
+        self.integration_sock = socket.socket(
+             socket.AF_INET,
+             socket.SOCK_DGRAM
+        )
         self.fs = 256
         self.window_count = 0
         self.faa_smoothed = None
@@ -75,12 +84,25 @@ class EEGProcessor:
             else:
                 self.faa_smoothed = (self.faa_smoothing_factor * faa + (1 - self.faa_smoothing_factor) * self.faa_smoothed
             )
+        message = {
+           "sensor": "muse",
+           "faa": float(faa),
+           "faa_smoothed": float(self.faa_smoothed),
+        }
+        self.integration_sock.sendto(
+           json.dumps(message).encode("utf-8"),
+           (
+               self.integration_host,
+               self.integration_port,
+           )
+        )
         max_alpha = max(
             result["alpha_power"]
             for result in results.values()
         )
 
-        os.system("clear")
+        if  os.isatty(1):
+           os.system("clear")
 
         print("\n" + "=" * 56)
         print("               T4MH Dashboard")
